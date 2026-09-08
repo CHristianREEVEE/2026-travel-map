@@ -217,6 +217,8 @@ html, body {
   font-family: inherit; outline: none; resize: none;
 }
 .note-input:focus { border-color: rgba(129,140,248,0.5); }
+.ck-locked { color:#64748b; font-size:12px; padding:6px 0; }
+.note-readonly { color:#cbd5e1; font-size:12px; background:rgba(30,41,59,0.6); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:6px 10px; margin-top:8px; text-align:left; line-height:1.5; white-space:pre-wrap; }
 .lightbox {
   position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
   display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
@@ -287,7 +289,7 @@ html, body {
   <div class="sidebar">
     <div class="header" style="position:relative">
       <div class="gear-btn" id="gearBtn">⚙️</div>
-      <div class="title-bar">🐎 2026 年末旅游地图</div>
+      <div class="title-bar">🐎 2026 年末旅游地图<span id="showBadge" style="display:none;font-size:11px;font-weight:700;background:rgba(148,163,184,0.2);color:#94a3b8;padding:2px 8px;border-radius:8px;margin-left:8px;vertical-align:middle;">展示版 · 只读</span></div>
       <div class="header-row">
         <div class="countdown-chip">⏳ 马年收官 <b id="cdDays">--</b> 天</div>
         <div class="progress-chip">✅ 已打卡 <b id="ckCount">0</b>/<span id="ckTotal">0</span><span class="bar"><i id="ckBar" style="width:0%"></i></span></div>
@@ -464,11 +466,28 @@ let hasBackend = false;
 
 // 内置同步口令（base64 混淆，免手动输入；自用工具，想换可在设置里覆盖）
 const BUILTIN_TOKEN = atob('dHJhdmVsX3N5bmNfMjAyNg==');
+// 展示版：?view=show 只读（给别人看，不能改）；默认管理版
+const IS_SHOW = new URLSearchParams(location.search).get('view') === 'show';
 
 function loadLocal() {
   try { checkins = JSON.parse(localStorage.getItem(LS.checkins) || '{}'); } catch(e) { checkins = {}; }
   try { photos = JSON.parse(localStorage.getItem(LS.photos) || '[]'); } catch(e) { photos = []; }
-  token = localStorage.getItem(LS.token) || BUILTIN_TOKEN;
+  token = IS_SHOW ? '' : (localStorage.getItem(LS.token) || BUILTIN_TOKEN);
+}
+
+// 展示版：从只读公开端点拉数据（无口令、无写权限）
+async function loadPublicData() {
+  try {
+    const res = await fetch(API_BASE + 'public', { headers: {} });
+    if (!res.ok) throw new Error('http ' + res.status);
+    const d = await res.json();
+    checkins = d.checkins || {};
+    photos = d.photos || [];
+    refreshUI();
+    setSyncDot('ok', '展示模式');
+  } catch (e) {
+    setSyncDot('pending', '展示版离线');
+  }
 }
 function saveCheckins() { localStorage.setItem(LS.checkins, JSON.stringify(checkins)); markPending(); }
 function savePhotos()   { localStorage.setItem(LS.photos, JSON.stringify(photos)); markPending(); }
@@ -598,15 +617,20 @@ async function openPlace(pid) {
   // 照片缩略图
   let photoHtml = '';
   for (let i = 0; i < myPhotos.length; i++) {
-    const data = await idbGet(myPhotos[i].key);
-    if (data) photoHtml += `<img class="photo-thumb" src="${data}" onclick="openLightbox('${pid}',${i})">`;
+    const src = IS_SHOW ? (API_BASE + 'photo/' + encodeURIComponent(myPhotos[i].key)) : await idbGet(myPhotos[i].key);
+    if (src) photoHtml += `<img class="photo-thumb" src="${src}" onclick="openLightbox('${pid}',${i})">`;
   }
-  photoHtml += `<div class="photo-add" onclick="pickPhoto('${pid}')" title="添加照片">＋</div>`;
+  if (!IS_SHOW) photoHtml += `<div class="photo-add" onclick="pickPhoto('${pid}')" title="添加照片">＋</div>`;
   const ck = checkins[pid] || {};
-  const ckArea = done
+  const ckArea = IS_SHOW
+    ? (done ? `<div class="ck-done-box">✓ 打卡于 ${fmtTime(ck.ts)}</div>` : `<div class="ck-locked">未打卡</div>`)
+    : done
     ? `<div class="ck-done-box">✓ 打卡于 ${fmtTime(ck.ts)}<button class="ck-undo" onclick="undoCheckin('${pid}')">撤销</button></div>`
     : `<button class="ck-btn" onclick="doCheckin('${pid}')">✓ 我到这儿了 · 打卡</button>`;
   const noteVal = esc(ck.note || '');
+  const noteHtml = IS_SHOW
+    ? (ck.note ? `<div class="note-readonly">${noteVal}</div>` : '')
+    : `<textarea class="note-input" id="noteBox" rows="2" placeholder="写点什么…（自动保存）">${noteVal}</textarea>`;
   const gIdx = COUNTABLE.findIndex(x => x.id === pid);
   const noHtml = isForeign(pid) ? '' : `<div style="color:#818cf8;font-weight:700;font-size:13px;">第 ${gIdx + 1} / ${COUNTABLE.length} 个目的地</div>`;
 
@@ -624,7 +648,7 @@ async function openPlace(pid) {
         <div style="color:#94a3b8;font-size:12px;margin-top:5px;line-height:1.4;">${esc(p.desc)}</div>
         ${ckArea}
         <div class="photo-strip" id="photoStrip">${photoHtml}</div>
-        <textarea class="note-input" id="noteBox" rows="2" placeholder="写点什么…（自动保存）">${noteVal}</textarea>
+        ${noteHtml}
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button onclick="navAmap('${pid}')" style="flex:1;padding:6px 12px;border:1px solid rgba(16,185,129,0.4);border-radius:8px;background:rgba(16,185,129,0.15);color:#10b981;font-size:12px;font-weight:600;cursor:pointer;">🧭 导航到这里</button>
           <button onclick="focusPlace('${pid}', true)" style="flex:1;padding:6px 12px;border:1px solid rgba(129,140,248,0.4);border-radius:8px;background:rgba(129,140,248,0.2);color:#818cf8;font-size:12px;font-weight:600;cursor:pointer;">🔍 放大细看</button>
@@ -756,10 +780,10 @@ let lbPid = null, lbIdx = 0;
 async function openLightbox(pid, idx) {
   lbPid = pid; lbIdx = idx;
   const list = photos.filter(x => x.pid === pid);
-  const data = await idbGet(list[idx].key);
+  const data = IS_SHOW ? (API_BASE + 'photo/' + encodeURIComponent(list[idx].key)) : await idbGet(list[idx].key);
   if (!data) return showToast('照片数据缺失');
   document.getElementById('lightboxImg').src = data;
-  document.getElementById('lbDelete').style.display = '';
+  document.getElementById('lbDelete').style.display = IS_SHOW ? 'none' : '';
   document.getElementById('lightbox').classList.add('show');
 }
 window.openLightbox = openLightbox;
@@ -1093,13 +1117,20 @@ window.confirmWipe = confirmWipe;
 // ================= 启动 =================
 (async function init() {
   loadLocal();
+  if (IS_SHOW) {
+    document.getElementById('showBadge').style.display = '';
+    document.getElementById('gearBtn').style.display = 'none';
+  }
   try { await openIDB(); } catch(e) { console.warn('IndexedDB 不可用，照片仅内存', e); }
   buildSidebar();
   buildMarkers();
   refreshUI();
   const domestic = PLACES.filter(p => !isForeign(p.id));
   map.fitBounds(domestic.map(p => [p.glat, p.glng]), { padding: [40, 40] });
-  if (token) { syncNow(false); } else { setSyncDot('pending', '未配置'); }
+  if (IS_SHOW) {
+    loadPublicData();
+    setSyncDot('ok', '展示模式');
+  } else if (token) { syncNow(false); } else { setSyncDot('pending', '未配置'); }
   window.addEventListener('resize', () => { map.invalidateSize(); });
 })();
 </script>
