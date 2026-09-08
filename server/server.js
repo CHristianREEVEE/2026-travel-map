@@ -143,6 +143,11 @@ const server = http.createServer(async (req, res) => {
   try {
     // 健康检查（无鉴权）
     if (p === '/health') return send(res, 200, { ok: true, ts: Date.now() });
+    // 展示版只读端点（无口令）：只返回打卡记录与照片元数据，无任何写权限
+    if ((p === '/api/public' || p === '/public') && req.method === 'GET') {
+      const d = readData();
+      return send(res, 200, { checkins: d.checkins, photos: d.photos, updated: d.updated });
+    }
     // 照片读取：key 为随机 UUID 不可枚举，无需口令（同 wbsync 图床思路）
     const photoMatch = p.match(/^\/photo\/([A-Za-z0-9_.-]+)$/);
     if (photoMatch && req.method === 'GET') return handlePhotoGet(req, res, photoMatch[1]);
@@ -163,6 +168,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+// 注意：绑定 0.0.0.0 是因为容器端口映射需要；宿主机侧仅映射到 127.0.0.1，外网不可达
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`[travelsync] listening on 127.0.0.1:${PORT}`);
 });
