@@ -341,9 +341,9 @@ html, body {
     <h3>⚙️ 设置</h3>
     <div class="sec">
       <div class="sec-title">云同步口令</div>
-      <input class="settings-input" id="tokenInput" type="password" placeholder="首次使用输入一次即可" autocomplete="off">
+      <input class="settings-input" id="tokenInput" type="password" placeholder="已自动同步，无需输入（仅换口令时用）" autocomplete="off">
       <button class="settings-btn primary" onclick="saveToken()">保存口令并同步</button>
-      <div class="settings-note" id="syncStatusNote">云同步：打卡记录与照片自动存到服务器，换设备输入同一口令即可恢复。</div>
+      <div class="settings-note" id="syncStatusNote">云同步已自动开启：打卡与照片实时存服务器，换设备打开即自动恢复。</div>
     </div>
     <div class="sec">
       <div class="sec-title">数据备份</div>
@@ -462,10 +462,13 @@ let photos = [];     // {key, pid, ts}
 let token = '';
 let hasBackend = false;
 
+// 内置同步口令（base64 混淆，免手动输入；自用工具，想换可在设置里覆盖）
+const BUILTIN_TOKEN = atob('dHJhdmVsX3N5bmNfMjAyNg==');
+
 function loadLocal() {
   try { checkins = JSON.parse(localStorage.getItem(LS.checkins) || '{}'); } catch(e) { checkins = {}; }
   try { photos = JSON.parse(localStorage.getItem(LS.photos) || '[]'); } catch(e) { photos = []; }
-  token = localStorage.getItem(LS.token) || '';
+  token = localStorage.getItem(LS.token) || BUILTIN_TOKEN;
 }
 function saveCheckins() { localStorage.setItem(LS.checkins, JSON.stringify(checkins)); markPending(); }
 function savePhotos()   { localStorage.setItem(LS.photos, JSON.stringify(photos)); markPending(); }
