@@ -1,0 +1,16 @@
+services:
+  travelsync:
+    image: node:20-alpine
+    container_name: travelsync
+    restart: unless-stopped
+    user: "node"
+    volumes:
+      - /opt/sites/travel/server.js:/app/server.js:ro
+      - /opt/sites/travel-data:/app/data
+    environment:
+      - PORT=3211
+      - TRAVEL_TOKEN=travel_sync_2026
+      - DATA_DIR=/app/data
+    command: node /app/server.js
+    ports:
+      - "127.0.0.1:3211:3211"
