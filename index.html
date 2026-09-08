@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>2026 年末旅游地图</title>
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f172a; --bg-2: #1e293b;
+  --glass: rgba(30,41,59,0.72); --glass-border: rgba(255,255,255,0.08);
+  --text: #f1f5f9; --text-dim: #94a3b8;
+  --accent: #818cf8; --accent-2: #c084fc;
+  --red: #ef4444; --orange: #f59e0b; --pink: #ec4899; --blue: #3b82f6;
+  --green: #10b981; --purple: #a855f7; --teal: #14b8a6; --cyan: #06b6d4;
+  --radius: 16px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+html, body {
+  height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg); color: var(--text); overflow: hidden; -webkit-overflow-scrolling: touch;
+}
+.app { display: block; height: 100vh; width: 100vw; }
+.sidebar {
+  width: 100%; max-width: 640px; margin: 0 auto; background: var(--bg);
+  display: flex; flex-direction: column; overflow-y: auto; height: 100vh;
+  scrollbar-width: thin; scrollbar-color: var(--accent) transparent; padding-bottom: 220px;
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 14px 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.title-bar {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px; padding: 8px 24px; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 2px;
+}
+.header-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.countdown-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 10px; padding: 5px 14px; font-size: 12px; font-weight: 700; color: #fff;
+}
+.countdown-chip b { font-size: 14px; }
+.progress-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 10px; padding: 5px 14px; font-size: 12px; font-weight: 700; color: #fff;
+}
+.progress-chip .bar { width: 72px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.25); overflow: hidden; }
+.progress-chip .bar i { display: block; height: 100%; background: #34d399; border-radius: 3px; transition: width 0.4s; }
+.gear-btn {
+  position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; z-index: 30;
+}
+.panel {
+  background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  margin: 12px 16px; padding: 16px 18px; box-shadow: var(--shadow);
+}
+.panel h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.panel h3 .icon { font-size: 16px; }
+.legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.legend-item { display: flex; align-items: center; font-size: 12px; color: var(--text-dim); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
+.group-block { margin-bottom: 14px; }
+.group-block:last-child { margin-bottom: 0; }
+.group-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); margin-bottom: 6px; user-select: none;
+}
+.group-head:hover { background: rgba(255,255,255,0.07); }
+.group-head .g-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
+.group-head .g-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.group-head .g-count { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-dim); }
+.group-head .g-arrow { font-size: 10px; color: var(--text-dim); transition: transform 0.2s; }
+.group-block.collapsed .g-arrow { transform: rotate(-90deg); }
+.group-block.collapsed .pl-list { display: none; }
+.pl-item {
+  display: flex; align-items: flex-start; padding: 7px 10px; border-radius: 10px; cursor: pointer;
+  transition: background 0.2s; margin-bottom: 3px; position: relative;
+}
+.pl-item:hover { background: rgba(255,255,255,0.06); }
+.pl-item.active { background: rgba(129,140,248,0.15); border: 1px solid rgba(129,140,248,0.3); padding: 6px 9px; }
+.pl-dot {
+  width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0; border: 2px solid var(--bg-2); box-shadow: 0 0 12px currentColor; z-index: 1; position: relative;
+}
+.pl-dot.done { background: #10b981 !important; color: #fff !important; }
+.pl-body { margin-left: 10px; flex: 1; min-width: 0; }
+.pl-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pl-tag {
+  font-size: 9px; font-weight: 800; color: #fbbf24; background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.3); padding: 1px 6px; border-radius: 6px; letter-spacing: 0.5px;
+}
+.pl-done-tag { font-size: 10px; font-weight: 700; color: #34d399; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); padding: 1px 6px; border-radius: 6px; }
+.pl-desc { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+.pl-checkin { font-size: 10px; color: #34d399; font-weight: 600; margin-top: 2px; }
+.map-wrap {
+  position: fixed; bottom: 16px; right: 16px; width: 280px; height: 200px;
+  border-radius: var(--radius); border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; z-index: 1000; cursor: pointer;
+  transition: width 0.45s cubic-bezier(0.4,0,0.2,1), height 0.45s cubic-bezier(0.4,0,0.2,1), bottom 0.45s cubic-bezier(0.4,0,0.2,1), right 0.45s cubic-bezier(0.4,0,0.2,1), border-radius 0.45s;
+}
+.map-wrap.expanded { width: calc(100vw - 32px); height: calc(100vh - 32px); bottom: 16px; right: 16px; border-radius: 20px; cursor: default; }
+#map { width: 100%; height: 100%; background: #e8e8e8; }
+.map-onboard {
+  position: fixed; inset: 0; z-index: 1002; display: flex; align-items: center; justify-content: center;
+  background: rgba(15,23,42,0.3); opacity: 1; transition: opacity 0.3s; cursor: default;
+}
+.map-onboard.hidden { opacity: 0; pointer-events: none; }
+.onboard-card {
+  position: relative; background: rgba(30,41,59,0.95); border: 1px solid rgba(129,140,248,0.3);
+  border-radius: 16px; padding: 32px 40px 28px; text-align: center; max-width: 280px;
+  box-shadow: 0 8px 40px rgba(129,140,248,0.15), 0 4px 16px rgba(0,0,0,0.5); animation: pulse-glow 2s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 8px 40px rgba(129,140,248,0.15), 0 4px 16px rgba(0,0,0,0.5); }
+  50% { box-shadow: 0 8px 50px rgba(129,140,248,0.35), 0 4px 16px rgba(0,0,0,0.5); }
+}
+.onboard-card .icon-big { font-size: 36px; margin-bottom: 12px; }
+.onboard-card .text { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.6; }
+.onboard-card .text span { color: var(--accent); font-weight: 700; }
+.onboard-close {
+  position: absolute; top: -16px; right: -16px; width: 40px; height: 40px; border-radius: 50%;
+  background: #ef4444; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: #fff; cursor: pointer; z-index: 1003; box-shadow: 0 4px 20px rgba(239,68,68,0.6);
+}
+.map-close {
+  position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(15,23,42,0.82); backdrop-filter: blur(8px); border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--text);
+  cursor: pointer; z-index: 1001; opacity: 0; pointer-events: none; transition: opacity 0.3s 0.2s;
+}
+.map-wrap.expanded .map-close { opacity: 1; pointer-events: auto; }
+.sync-dot {
+  position: absolute; top: 12px; left: 12px; z-index: 1001; display: flex; align-items: center; gap: 6px;
+  background: rgba(15,23,42,0.7); backdrop-filter: blur(8px); border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 4px 12px; font-size: 11px; font-weight: 600; color: var(--text-dim); cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s 0.2s;
+}
+.map-wrap.expanded .sync-dot { opacity: 1; pointer-events: auto; }
+.sync-dot .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+.sync-dot.ok .dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
+.sync-dot.pending .dot { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+.sync-dot.err .dot { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+.map-tip-bar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(15,23,42,0.45); color: rgba(241,245,249,0.7); font-size: 12px; font-weight: 500;
+  padding: 5px 16px; border-radius: 16px; z-index: 1001; opacity: 0; pointer-events: none;
+  transition: opacity 0.4s 0.3s; white-space: nowrap;
+}
+.map-wrap.expanded .map-tip-bar { opacity: 1; }
+.leaflet-popup-content-wrapper {
+  background: rgba(15,23,42,0.92); backdrop-filter: blur(16px); color: var(--text);
+  border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: var(--shadow);
+}
+.leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.5; }
+.leaflet-popup-tip { background: rgba(15,23,42,0.92); border: 1px solid var(--glass-border); }
+.leaflet-container a.leaflet-popup-close-button { color: var(--text-dim); font-size: 18px; padding: 6px 8px; }
+.leaflet-control-zoom a {
+  background: rgba(30,41,59,0.9) !important; backdrop-filter: blur(8px); color: var(--text) !important;
+  border: 1px solid var(--glass-border) !important; border-radius: 8px !important;
+}
+.leaflet-control-zoom a:hover { background: rgba(129,140,248,0.3) !important; }
+.leaflet-control-attribution { background: rgba(15,23,42,0.7) !important; color: var(--text-dim) !important; font-size: 10px !important; border-radius: 6px 0 0 0; }
+.leaflet-control-attribution a { color: var(--accent) !important; }
+.custom-marker { background: transparent !important; border: none !important; }
+.marker-pin {
+  width: 36px; height: 36px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  border: 3px solid white; box-shadow: 0 3px 10px rgba(0,0,0,0.5), 0 0 16px currentColor;
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+.marker-pin .emoji { transform: rotate(45deg); font-size: 16px; line-height: 1; }
+.marker-pin.done { background: #10b981; }
+.step-badge {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: 24px; height: 24px; border-radius: 50%; background: #0f172a; border: 2.5px solid #fff;
+  color: #fff; font-size: 14px; font-weight: 900; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5); line-height: 1; font-family: system-ui, sans-serif;
+}
+.step-badge.done { background: #10b981; }
+.marker-pin.foreign { opacity: 0.55; }
+/* popup 内部件 */
+.ck-btn {
+  width: 100%; margin-top: 8px; padding: 8px 12px; border: 1px solid rgba(16,185,129,0.5); border-radius: 10px;
+  background: rgba(16,185,129,0.2); color: #34d399; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.ck-btn:hover { background: rgba(16,185,129,0.35); }
+.ck-done-box {
+  margin-top: 8px; display: flex; align-items: center; gap: 8px; justify-content: center;
+  background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); border-radius: 10px; padding: 7px 10px;
+  font-size: 12px; font-weight: 700; color: #34d399; flex-wrap: wrap;
+}
+.ck-undo {
+  border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.12); color: #f87171;
+  border-radius: 8px; padding: 2px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.photo-strip { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px; }
+.photo-strip::-webkit-scrollbar { height: 4px; }
+.photo-strip::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+.photo-thumb { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); flex-shrink: 0; }
+.photo-add {
+  width: 64px; height: 64px; border-radius: 8px; border: 1.5px dashed rgba(129,140,248,0.5); flex-shrink: 0;
+  background: rgba(129,140,248,0.08); color: var(--accent); font-size: 22px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.photo-add:hover { background: rgba(129,140,248,0.2); }
+.note-input {
+  width: 100%; margin-top: 8px; padding: 6px 10px; border-radius: 8px; font-size: 12px;
+  border: 1px solid var(--glass-border); background: rgba(15,23,42,0.6); color: var(--text);
+  font-family: inherit; outline: none; resize: none;
+}
+.note-input:focus { border-color: rgba(129,140,248,0.5); }
+.lightbox {
+  position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+}
+.lightbox.show { display: flex; }
+.lightbox img { max-width: 92vw; max-height: 80vh; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); object-fit: contain; }
+.lightbox-tools { display: flex; gap: 10px; }
+.lightbox-tools button {
+  padding: 6px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.1); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.lightbox-tools button:hover { background: rgba(255,255,255,0.2); }
+.lightbox-tools .del { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.15); color: #f87171; }
+.lightbox-close {
+  position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); border: none; color: #fff; font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+/* 设置弹层 */
+.settings-mask {
+  position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.settings-mask.show { display: flex; }
+.settings-card {
+  background: rgba(30,41,59,0.97); border: 1px solid rgba(129,140,248,0.3); border-radius: 16px;
+  padding: 22px 24px; width: 100%; max-width: 380px; max-height: 82vh; overflow-y: auto; box-shadow: var(--shadow);
+}
+.settings-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.settings-card .sec { margin-bottom: 18px; }
+.settings-card .sec-title { font-size: 12px; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
+.settings-input {
+  width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--glass-border);
+  background: rgba(15,23,42,0.7); color: var(--text); font-size: 13px; outline: none; font-family: inherit;
+}
+.settings-input:focus { border-color: rgba(129,140,248,0.5); }
+.settings-btn {
+  display: block; width: 100%; margin-top: 8px; padding: 9px 12px; border-radius: 10px; font-size: 13px;
+  font-weight: 700; cursor: pointer; border: 1px solid; font-family: inherit;
+}
+.settings-btn.primary { background: rgba(129,140,248,0.25); border-color: rgba(129,140,248,0.5); color: var(--accent); }
+.settings-btn.danger { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); color: #f87171; }
+.settings-btn.plain { background: rgba(255,255,255,0.06); border-color: var(--glass-border); color: var(--text); }
+.settings-note { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: 6px; }
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 10002;
+  background: rgba(30,41,59,0.95); border: 1px solid rgba(129,140,248,0.4); color: var(--text);
+  border-radius: 12px; padding: 10px 22px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow);
+  opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 768px) {
+  .sidebar { width: 100%; max-width: 100%; height: 100vh; padding-bottom: 230px; }
+  .header { padding: 18px 16px 14px; }
+  .panel { margin: 10px 12px; padding: 12px 14px; }
+  .map-wrap { width: calc(100vw - 24px); height: 200px; bottom: 12px; right: 12px; border-radius: 14px; }
+  .map-wrap.expanded { width: 100vw; height: 100vh; bottom: 0; right: 0; border-radius: 0; }
+  .onboard-card { max-width: 240px; padding: 24px 28px 20px; }
+  .onboard-card .text { font-size: 14px; }
+  .leaflet-popup-content { font-size: 12px; margin: 10px 12px; }
+  .photo-thumb, .photo-add { width: 56px; height: 56px; }
+  .gear-btn { top: 10px; right: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="header" style="position:relative">
+      <div class="gear-btn" id="gearBtn">⚙️</div>
+      <div class="title-bar">🐎 2026 年末旅游地图</div>
+      <div class="header-row">
+        <div class="countdown-chip">⏳ 马年收官 <b id="cdDays">--</b> 天</div>
+        <div class="progress-chip">✅ 已打卡 <b id="ckCount">0</b>/<span id="ckTotal">0</span><span class="bar"><i id="ckBar" style="width:0%"></i></span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span class="icon">📍</span>图例</h3>
+      <div class="legend-grid" id="legendGrid"></div>
+    </div>
+    <div class="panel">
+      <h3><span class="icon">🗺️</span>目的地 <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:auto">点击跳转 · 分组可折叠</span></h3>
+      <div id="groupList"></div>
+    </div>
+    <div class="panel">
+      <h3><span class="icon">💡</span>玩法说明</h3>
+      <div style="font-size:11px;color:var(--text-dim);line-height:1.8">
+        标了 <span style="color:#fbbf24;font-weight:700">2日联游</span> 的地方离得近，可以一个周末打包玩掉；<br>
+        到了地方就点 <span style="color:#34d399;font-weight:700">打卡</span>，标记会变绿并记下时间；<br>
+        打卡后可以传照片，换手机也不丢（自动云同步）；<br>
+        数据和照片都在 ⚙️ 里可以一键导出备份。
+      </div>
+    </div>
+  </div>
+
+  <div class="map-wrap" id="mapWrap">
+    <div class="map-onboard" id="mapOnboard">
+      <div class="onboard-card">
+        <div class="onboard-close" id="onboardClose">✕</div>
+        <div class="icon-big">🗺️</div>
+        <div class="text">点击右下角<span>小地图</span><br>可全屏查看地图</div>
+      </div>
+    </div>
+    <div class="map-close" id="mapClose">✕</div>
+    <div class="map-tip-bar" id="mapTipBar">👆 点击地点标记可查看详情与打卡</div>
+    <div class="sync-dot" id="syncDot" onclick="syncNow()"><span class="dot"></span><span id="syncText">未同步</span></div>
+    <div id="map"></div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" />
+  <div class="lightbox-tools">
+    <button onclick="downloadLightbox()">⬇️ 保存原图</button>
+    <button class="del" id="lbDelete" onclick="deleteLightboxPhoto()">🗑 删除这张</button>
+  </div>
+</div>
+
+<div class="settings-mask" id="settingsMask" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-card">
+    <h3>⚙️ 设置</h3>
+    <div class="sec">
+      <div class="sec-title">云同步口令</div>
+      <input class="settings-input" id="tokenInput" type="password" placeholder="首次使用输入一次即可" autocomplete="off">
+      <button class="settings-btn primary" onclick="saveToken()">保存口令并同步</button>
+      <div class="settings-note" id="syncStatusNote">云同步：打卡记录与照片自动存到服务器，换设备输入同一口令即可恢复。</div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">数据备份</div>
+      <button class="settings-btn plain" onclick="exportData()">⬇️ 导出全部数据（含照片）</button>
+      <button class="settings-btn plain" onclick="document.getElementById('importFile').click()">⬆️ 从备份文件导入</button>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(event)">
+      <div class="settings-note">建议偶尔导出一份存到网盘，双保险。导入会与现有记录合并（时间新者优先）。</div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">其他</div>
+      <button class="settings-btn plain" onclick="syncNow(true)">🔄 立即同步</button>
+      <button class="settings-btn danger" onclick="confirmWipe()">🗑 清空本地缓存（服务器数据不动）</button>
+    </div>
+    <button class="settings-btn plain" onclick="closeSettings()">关闭</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+// ================= WGS84 → GCJ-02 =================
+function wgs84ToGcj02(lng, lat) {
+  const a = 6378245.0, ee = 0.00669342162296594323;
+  function tLat(lng, lat) {
+    let ret = -100 + 2*lng - 3*lat + 0.2*lat*lat + 0.1*lng*lat + 0.2*Math.sqrt(Math.abs(lng));
+    ret += (20*Math.sin(6*lng*Math.PI) + 20*Math.sin(2*lng*Math.PI)) * 2/3;
+    ret += (20*Math.sin(lat*Math.PI) + 40*Math.sin(lat/3*Math.PI)) * 2/3;
+    ret += (160*Math.sin(lat/12*Math.PI) + 320*Math.sin(lat*Math.PI/30)) * 2/3;
+    return ret;
+  }
+  function tLng(lng, lat) {
+    let ret = 300 + lng + 2*lat + 0.1*lng*lng + 0.1*lng*lat + 0.1*Math.sqrt(Math.abs(lng));
+    ret += (20*Math.sin(6*lng*Math.PI) + 20*Math.sin(2*lng*Math.PI)) * 2/3;
+    ret += (20*Math.sin(lng*Math.PI) + 40*Math.sin(lng/3*Math.PI)) * 2/3;
+    ret += (150*Math.sin(lng/12*Math.PI) + 300*Math.sin(lng/30*Math.PI)) * 2/3;
+    return ret;
+  }
+  let dLat = tLat(lng, lat), dLng = tLng(lng, lat);
+  const radLat = lat / 180 * Math.PI;
+  let magic = Math.sin(radLat); magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+  dLng = (dLng * 180) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+  return [lng + dLng, lat + dLat];
+}
+
+// ================= 数据定义 =================
+const GROUPS = [
+  { id: 'js',   name: '江苏短线 · 扬州镇江',   color: '#ec4899', icon: '🌸', desc: '隔江相望，城际半小时' },
+  { id: 'jx',   name: '江西线 · 三清山/南昌',  color: '#f59e0b', icon: '⛰️', desc: '两段拆开走' },
+  { id: 'hq',   name: '华北蒙线 · 北京/赤峰/沈阳', color: '#ef4444', icon: '🐎', desc: '三点一线一龙串' },
+  { id: 'sx',   name: '晋陕线 · 西安/华山/鹳雀楼', color: '#a855f7', icon: '🏯', desc: '隐藏三日线' },
+  { id: 'sd',   name: '山东线 · 济南/泰山/青岛', color: '#3b82f6', icon: '🍺', desc: '1.5天到3天弹性' },
+  { id: 'xn',   name: '西南线 · 成都/重庆',    color: '#14b8a6', icon: '🐼', desc: '多段组合' },
+  { id: 'xj',   name: '新疆线 · 赛里木湖/巴音布鲁克', color: '#06b6d4', icon: '🏔️', desc: '大远途留足时间' },
+  { id: 'hn',   name: '华南线 · 广深/港澳台',  color: '#10b981', icon: '🌊', desc: '广深两天起步' },
+  { id: 'wz',   name: '皖浙南 · 齐云山/龙泉',  color: '#818cf8', icon: '🍵', desc: '山水慢线' },
+  { id: 'hw',   name: '国外存档 · 有钱有闲再说', color: '#64748b', icon: '✈️', desc: '暂不参与打卡统计' },
+];
+const PLACES = [
+  // 江苏
+  { id: 'yz',   g: 'js', name: '扬州 · 瘦西湖', lat: 32.4196, lng: 119.4150, icon: '🌸', tag: '2日联游', desc: '瘦西湖+东关街，与镇江打包两天' },
+  { id: 'zj',   g: 'js', name: '镇江', lat: 32.1880, lng: 119.4250, icon: '🥟', tag: '2日联游', desc: '锅盖面+西津渡，半天到一天' },
+  // 江西
+  { id: 'sqs',  g: 'jx', name: '上饶 · 三清山', lat: 28.9000, lng: 118.0700, icon: '⛰️', tag: '2日联游', desc: '栈道云海，单独安排两天' },
+  { id: 'nc',   g: 'jx', name: '南昌 · 滕王阁', lat: 28.6865, lng: 115.8764, icon: '🏯', tag: '2日联游', desc: '滕王阁半天，接武功山高铁1h' },
+  { id: 'wgs',  g: 'jx', name: '萍乡 · 武功山', lat: 27.4560, lng: 114.1660, icon: '🌄', tag: '2日联游', desc: '高山草甸看日出，与南昌联游' },
+  // 华北蒙
+  { id: 'bj',   g: 'hq', name: '北京', lat: 39.9042, lng: 116.4074, icon: '🏛️', tag: '枢纽', desc: '京津两天 / 京赤沈一龙串的起点' },
+  { id: 'tj',   g: 'hq', name: '天津', lat: 39.1289, lng: 117.1972, icon: '🥐', tag: '2日联游', desc: '与北京高铁30分钟，五大道+相声' },
+  { id: 'qhd',  g: 'hq', name: '秦皇岛 · 北戴河', lat: 39.8350, lng: 119.4780, icon: '🏖️', tag: '2日联游', desc: '海边+山海关，接北京延伸两天' },
+  { id: 'cf',   g: 'hq', name: '赤峰 · 乌兰布统', lat: 42.4000, lng: 117.3500, icon: '🐎', tag: '2日联游', desc: '坝上草原滑草骑马！北京高铁2h，季节10月初关窗' },
+  { id: 'sy',   g: 'hq', name: '沈阳', lat: 41.7959, lng: 123.4555, icon: '🍜', tag: '2日联游', desc: '赤峰高铁2h47m直达，故宫+西塔' },
+  // 晋陕
+  { id: 'xa',   g: 'sx', name: '西安', lat: 34.2610, lng: 108.9420, icon: '🏺', tag: '3日联游', desc: '西安+华山+鹳雀楼晋陕环线' },
+  { id: 'hs',   g: 'sx', name: '渭南 · 华山', lat: 34.4800, lng: 110.0800, icon: '🧗', tag: '3日联游', desc: '西安高铁30分钟，夜爬看日出' },
+  { id: 'gql',  g: 'sx', name: '运城 · 鹳雀楼', lat: 34.8366, lng: 110.2886, icon: '🏯', tag: '3日联游', desc: '白日依山尽，离西安高铁1.5h' },
+  // 山东
+  { id: 'jn',   g: 'sd', name: '济南', lat: 36.6610, lng: 117.0200, icon: '⛲', tag: '2日联游', desc: '趵突泉+大明湖，半天到一天' },
+  { id: 'ts',   g: 'sd', name: '泰安 · 泰山', lat: 36.2560, lng: 117.1010, icon: '🗻', tag: '2日联游', desc: '济南高铁20分钟，夜爬看日出' },
+  { id: 'qd',   g: 'sd', name: '青岛', lat: 36.0580, lng: 120.3190, icon: '🍺', tag: '加天', desc: '海边+啤酒，山东线加一天' },
+  // 西南
+  { id: 'cd',   g: 'xn', name: '成都', lat: 30.6660, lng: 104.0560, icon: '🐼', tag: '2日联游', desc: '市区一天，三星堆半天' },
+  { id: 'sxd',  g: 'xn', name: '广汉 · 三星堆', lat: 30.9906, lng: 104.2033, icon: '👁️', tag: '2日联游', desc: '青铜面具，成都出发1h' },
+  { id: 'cq',   g: 'xn', name: '重庆', lat: 29.5630, lng: 106.5810, icon: '🌶️', tag: '2日联游', desc: '成渝高铁1.5h，洪崖洞+火锅' },
+  { id: 'jzg',  g: 'xn', name: '阿坝 · 九寨沟', lat: 33.2600, lng: 103.9200, icon: '💧', tag: '单独2-3天', desc: '成都出发，秋天五花海封神' },
+  // 新疆
+  { id: 'sml',  g: 'xj', name: '博州 · 赛里木湖', lat: 44.6056, lng: 81.2003, icon: '🏔️', tag: '大线4-5天', desc: '大西洋最后一滴眼泪' },
+  { id: 'bybl', g: 'xj', name: '巴州 · 巴音布鲁克', lat: 42.7700, lng: 84.1500, icon: '🦢', tag: '大线4-5天', desc: '九曲十八弯，与赛湖串独库线' },
+  // 华南
+  { id: 'gz',   g: 'hn', name: '广州', lat: 23.1060, lng: 113.3240, icon: '🍵', tag: '2日联游', desc: '早茶+小蛮腰，与深圳高铁35min' },
+  { id: 'sz',   g: 'hn', name: '深圳', lat: 22.5360, lng: 114.0550, icon: '🏙️', tag: '2日联游', desc: '与广州打包，过关即香港' },
+  { id: 'xg',   g: 'hn', name: '香港', lat: 22.2940, lng: 114.1690, icon: '🚢', tag: '2日联游', desc: '维港+茶餐厅，深圳过关即达' },
+  { id: 'am',   g: 'hn', name: '澳门', lat: 22.1940, lng: 113.5410, icon: '🎰', tag: '加天', desc: '与香港船/桥互通，加一天' },
+  { id: 'tw',   g: 'hn', name: '台湾 · 台北', lat: 25.0340, lng: 121.5640, icon: '🏮', tag: '单独', desc: '需要证件，单独安排' },
+  // 皖浙
+  { id: 'qys',  g: 'wz', name: '休宁 · 齐云山', lat: 29.8000, lng: 118.0300, icon: '☯️', tag: '2日联游', desc: '道教名山+云海' },
+  { id: 'lq',   g: 'wz', name: '龙泉 · 安仁镇', lat: 28.0600, lng: 119.0900, icon: '🗡️', tag: '2日联游', desc: '剑瓷小镇，青瓷宝剑' },
+  // 国外存档
+  { id: 'mlxy', g: 'hw', name: '马来西亚 · 吉隆坡', lat: 3.1580, lng: 101.7120, icon: '✈️', tag: '存档', desc: '双子塔+沙巴，先存着' },
+  { id: 'rb',   g: 'hw', name: '日本 · 东京', lat: 35.6760, lng: 139.6500, icon: '✈️', tag: '存档', desc: '先存着' },
+  { id: 'jzd',  g: 'hw', name: '韩国 · 济州岛', lat: 33.4990, lng: 126.5310, icon: '✈️', tag: '存档', desc: '先存着' },
+  { id: 'xjp',  g: 'hw', name: '新加坡', lat: 1.2870, lng: 103.8520, icon: '✈️', tag: '存档', desc: '先存着' },
+];
+
+// ================= 状态存储 =================
+const LS = {
+  checkins: 't2026_checkins',   // {pid: {ts, note}}
+  photos:   't2026_photos',     // [{key,pid,ts}]  元数据
+  token:    't2026_token',
+  pending:  't2026_pending',
+};
+let checkins = {};   // pid -> {ts, note}
+let photos = [];     // {key, pid, ts}
+let token = '';
+let hasBackend = false;
+
+function loadLocal() {
+  try { checkins = JSON.parse(localStorage.getItem(LS.checkins) || '{}'); } catch(e) { checkins = {}; }
+  try { photos = JSON.parse(localStorage.getItem(LS.photos) || '[]'); } catch(e) { photos = []; }
+  token = localStorage.getItem(LS.token) || '';
+}
+function saveCheckins() { localStorage.setItem(LS.checkins, JSON.stringify(checkins)); markPending(); }
+function savePhotos()   { localStorage.setItem(LS.photos, JSON.stringify(photos)); markPending(); }
+
+// ================= IndexedDB（照片本体） =================
+let idb = null;
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('travel2026', 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains('photos')) req.result.createObjectStore('photos');
+    };
+    req.onsuccess = () => { idb = req.result; resolve(idb); };
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbPut(key, dataUrl) {
+  return new Promise((resolve, reject) => {
+    if (!idb) return resolve(false);
+    try {
+      const tx = idb.transaction('photos', 'readwrite');
+      tx.objectStore('photos').put(dataUrl, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    } catch(e) { resolve(false); }
+  });
+}
+function idbGet(key) {
+  return new Promise((resolve) => {
+    if (!idb) return resolve(null);
+    try {
+      const tx = idb.transaction('photos', 'readonly');
+      const req = tx.objectStore('photos').get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch(e) { resolve(null); }
+  });
+}
+function idbDel(key) {
+  return new Promise((resolve) => {
+    if (!idb) return resolve(false);
+    try {
+      const tx = idb.transaction('photos', 'readwrite');
+      tx.objectStore('photos').delete(key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch(e) { resolve(false); }
+  });
+}
+
+// ================= 工具 =================
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function groupOf(pid) { const p = PLACES.find(p => p.id === pid); return GROUPS.find(g => g.id === (p && p.g)); }
+function isForeign(pid) { const g = groupOf(pid); return !!(g && g.id === 'hw'); }
+const COUNTABLE = PLACES.filter(p => !isForeign(p.id));
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(showToast._tm);
+  showToast._tm = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ================= 地图 =================
+PLACES.forEach(p => { const g = wgs84ToGcj02(p.lng, p.lat); p.glng = g[0]; p.glat = g[1]; });
+const map = L.map('map', {
+  center: [34.5, 107.5], zoom: 4, zoomControl: true, scrollWheelZoom: true, attributionControl: true,
+  minZoom: 3, maxZoom: 19, worldCopyJump: true,
+});
+const tileLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', {
+  attribution: '高德地图', maxZoom: 19, subdomains: ['1','2','3','4'], crossOrigin: true,
+}).addTo(map);
+// 瓦片加载指示器
+const mapLoading = document.createElement('div');
+mapLoading.style.cssText = 'position:absolute;bottom:24px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(30,41,59,0.92);color:#e2e8f0;padding:12px 32px;border-radius:16px;font-size:15px;font-weight:700;backdrop-filter:blur(8px);border:1px solid rgba(129,140,248,0.3);pointer-events:none;transition:opacity 0.4s;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);';
+mapLoading.textContent = '🗺️ 地图加载中…';
+document.getElementById('map').appendChild(mapLoading);
+let _tilesTotal = 0, _tilesLoaded = 0;
+tileLayer.on('tileloadstart', () => _tilesTotal++);
+tileLayer.on('tileload tileerror', () => {
+  _tilesLoaded++;
+  if (_tilesLoaded >= _tilesTotal) { mapLoading.style.opacity = '0'; setTimeout(() => mapLoading.remove(), 400); }
+});
+
+const markers = {};
+function markerHtml(p) {
+  const done = !!checkins[p.id];
+  const g = groupOf(p.id);
+  return `<div style="position:relative;color:${g.color}">
+    <div class="step-badge ${done ? 'done' : ''}">${done ? '✓' : (g.icon)}</div>
+    <div class="marker-pin ${done ? 'done' : ''} ${isForeign(p.id) ? 'foreign' : ''}" style="background:${done ? '#10b981' : g.color};color:${g.color}">
+      <div class="emoji">${done ? '✓' : p.icon}</div>
+    </div>
+  </div>`;
+}
+function buildMarkers() {
+  PLACES.forEach(p => {
+    const icon = L.divIcon({ html: markerHtml(p), className: 'custom-marker', iconSize: [36, 48], iconAnchor: [18, 48] });
+    const m = L.marker([p.glat, p.glng], { icon }).addTo(map);
+    m.on('click', () => openPlace(p.id));
+    markers[p.id] = m;
+  });
+}
+function refreshMarkers() {
+  PLACES.forEach(p => {
+    const m = markers[p.id];
+    if (!m) return;
+    m.setIcon(L.divIcon({ html: markerHtml(p), className: 'custom-marker', iconSize: [36, 48], iconAnchor: [18, 48] }));
+  });
+}
+
+// ================= 地点详情面板 =================
+let currentPid = null;
+async function openPlace(pid) {
+  const p = PLACES.find(x => x.id === pid);
+  if (!p) return;
+  currentPid = pid;
+  const g = groupOf(pid);
+  const done = !!checkins[pid];
+  const myPhotos = photos.filter(ph => ph.pid === pid);
+  // 照片缩略图
+  let photoHtml = '';
+  for (let i = 0; i < myPhotos.length; i++) {
+    const data = await idbGet(myPhotos[i].key);
+    if (data) photoHtml += `<img class="photo-thumb" src="${data}" onclick="openLightbox('${pid}',${i})">`;
+  }
+  photoHtml += `<div class="photo-add" onclick="pickPhoto('${pid}')" title="添加照片">＋</div>`;
+  const ck = checkins[pid] || {};
+  const ckArea = done
+    ? `<div class="ck-done-box">✓ 打卡于 ${fmtTime(ck.ts)}<button class="ck-undo" onclick="undoCheckin('${pid}')">撤销</button></div>`
+    : `<button class="ck-btn" onclick="doCheckin('${pid}')">✓ 我到这儿了 · 打卡</button>`;
+  const noteVal = esc(ck.note || '');
+  const gIdx = COUNTABLE.findIndex(x => x.id === pid);
+  const noHtml = isForeign(pid) ? '' : `<div style="color:#818cf8;font-weight:700;font-size:13px;">第 ${gIdx + 1} / ${COUNTABLE.length} 个目的地</div>`;
+
+  L.popup({ maxWidth: 300 })
+    .setLatLng([p.glat, p.glng])
+    .setContent(`
+      <div style="text-align:center;min-width:230px;">
+        <div style="font-size:28px;margin-bottom:4px;">${p.icon}</div>
+        <div style="font-weight:800;font-size:15px;color:#f1f5f9;">${esc(p.name)}</div>
+        <div style="margin:5px 0;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;">
+          <span style="display:inline-block;background:${g.color};color:white;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;">${g.name}</span>
+          ${p.tag ? `<span style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;border:1px solid rgba(251,191,36,0.35);">${esc(p.tag)}</span>` : ''}
+        </div>
+        ${noHtml}
+        <div style="color:#94a3b8;font-size:12px;margin-top:5px;line-height:1.4;">${esc(p.desc)}</div>
+        ${ckArea}
+        <div class="photo-strip" id="photoStrip">${photoHtml}</div>
+        <textarea class="note-input" id="noteBox" rows="2" placeholder="写点什么…（自动保存）">${noteVal}</textarea>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button onclick="navAmap('${pid}')" style="flex:1;padding:6px 12px;border:1px solid rgba(16,185,129,0.4);border-radius:8px;background:rgba(16,185,129,0.15);color:#10b981;font-size:12px;font-weight:600;cursor:pointer;">🧭 导航到这里</button>
+          <button onclick="focusPlace('${pid}', true)" style="flex:1;padding:6px 12px;border:1px solid rgba(129,140,248,0.4);border-radius:8px;background:rgba(129,140,248,0.2);color:#818cf8;font-size:12px;font-weight:600;cursor:pointer;">🔍 放大细看</button>
+        </div>
+      </div>
+    `)
+    .openOn(map);
+  // 备注自动保存
+  setTimeout(() => {
+    const nb = document.getElementById('noteBox');
+    if (nb) {
+      nb.addEventListener('change', () => saveNote(pid, nb.value));
+      nb.addEventListener('blur', () => saveNote(pid, nb.value));
+    }
+  }, 50);
+}
+window.openPlace = openPlace;
+
+function doCheckin(pid) {
+  checkins[pid] = { ts: Date.now(), note: (checkins[pid] || {}).note || '' };
+  saveCheckins();
+  refreshUI();
+  openPlace(pid);
+  showToast('📍 打卡成功！');
+  scheduleSync();
+}
+window.doCheckin = doCheckin;
+function undoCheckin(pid) {
+  const ph = photos.filter(x => x.pid === pid).length;
+  const go = () => {
+    window._removedCk = (window._removedCk || []).concat([pid]);
+    delete checkins[pid];
+    saveCheckins(); refreshUI(); openPlace(pid); showToast('已撤销打卡'); scheduleSync();
+  };
+  if (ph > 0) {
+    if (!confirm(`这个地点还有 ${ph} 张照片，撤销打卡会连照片一起删，确定？`)) return;
+    const removed = photos.filter(x => x.pid === pid);
+    removed.forEach(x => idbDel(x.key));
+    window._removedPh = (window._removedPh || []).concat(removed.map(x => x.key));
+    photos = photos.filter(x => x.pid !== pid);
+    savePhotos();
+  }
+  go();
+}
+window.undoCheckin = undoCheckin;
+function saveNote(pid, val) {
+  if (!checkins[pid]) return; // 未打卡不存备注
+  checkins[pid].note = val.trim();
+  saveCheckins();
+  scheduleSync();
+}
+window.saveNote = saveNote;
+function navAmap(pid) {
+  const p = PLACES.find(x => x.id === pid);
+  if (!p) return;
+  const name = encodeURIComponent(p.name);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const url = `https://uri.amap.com/marker?position=${p.glng},${p.glat}&name=${name}&coordinateSystem=gaode${isMobile ? '&callnative=1' : ''}`;
+  if (isMobile) window.location.href = url; else window.open(url, '_blank');
+}
+window.navAmap = navAmap;
+function focusPlace(pid, zoomIn) {
+  const p = PLACES.find(x => x.id === pid);
+  if (!p) return;
+  expandMap();
+  map.flyTo([p.glat, p.glng], zoomIn ? 13 : 9, { duration: 1.0 });
+}
+window.focusPlace = focusPlace;
+
+// ================= 照片 =================
+function pickPhoto(pid) {
+  let inp = document.getElementById('photoInput');
+  if (!inp) {
+    inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp'; inp.multiple = true;
+    inp.style.display = 'none'; inp.id = 'photoInput';
+    document.body.appendChild(inp);
+  }
+  inp._pid = pid;
+  inp.value = '';
+  inp.onchange = () => handlePhotoFiles(pid, inp.files);
+  inp.click();
+}
+window.pickPhoto = pickPhoto;
+function compressImage(file, maxSide = 1280, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const scale = Math.min(1, maxSide / Math.max(w, h));
+        w = Math.round(w * scale); h = Math.round(h * scale);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('图片读取失败'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+async function handlePhotoFiles(pid, files) {
+  if (!files || !files.length) return;
+  let ok = 0;
+  for (const f of Array.from(files).slice(0, 9)) {
+    try {
+      const dataUrl = await compressImage(f);
+      const key = (crypto.randomUUID ? crypto.randomUUID() : 'p' + Date.now() + Math.random().toString(36).slice(2)) + '.jpg';
+      await idbPut(key, dataUrl);
+      photos.push({ key, pid, ts: Date.now() });
+      ok++;
+    } catch(e) { console.warn('photo fail', e); }
+  }
+  savePhotos();
+  if (currentPid === pid) openPlace(pid);
+  showToast(`📷 已添加 ${ok} 张照片`);
+  scheduleSync();
+}
+window.handlePhotoFiles = handlePhotoFiles;
+
+// ================= Lightbox =================
+let lbPid = null, lbIdx = 0;
+async function openLightbox(pid, idx) {
+  lbPid = pid; lbIdx = idx;
+  const list = photos.filter(x => x.pid === pid);
+  const data = await idbGet(list[idx].key);
+  if (!data) return showToast('照片数据缺失');
+  document.getElementById('lightboxImg').src = data;
+  document.getElementById('lbDelete').style.display = '';
+  document.getElementById('lightbox').classList.add('show');
+}
+window.openLightbox = openLightbox;
+function closeLightbox() { document.getElementById('lightbox').classList.remove('show'); }
+window.closeLightbox = closeLightbox;
+async function deleteLightboxPhoto() {
+  if (!lbPid) return;
+  const list = photos.filter(x => x.pid === lbPid);
+  const ph = list[lbIdx];
+  if (!ph) return;
+  if (!confirm('删除这张照片？')) return;
+  await idbDel(ph.key);
+  window._removedPh = (window._removedPh || []).concat([ph.key]);
+  photos = photos.filter(x => x.key !== ph.key);
+  savePhotos();
+  closeLightbox();
+  if (currentPid === lbPid) openPlace(lbPid);
+  showToast('已删除照片');
+  scheduleSync();
+}
+window.deleteLightboxPhoto = deleteLightboxPhoto;
+function downloadLightbox() {
+  const src = document.getElementById('lightboxImg').src;
+  if (!src) return;
+  const a = document.createElement('a');
+  a.href = src; a.download = `travel-${Date.now()}.jpg`;
+  a.click();
+}
+window.downloadLightbox = downloadLightbox;
+document.addEventListener('keydown', (e) => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('show')) return;
+  if (e.key === 'Escape') closeLightbox();
+});
+
+// ================= 侧栏 =================
+function buildSidebar() {
+  const lg = document.getElementById('legendGrid');
+  lg.innerHTML = GROUPS.map(g => `
+    <div class="legend-item"><div class="legend-dot" style="background:${g.color};color:${g.color}"></div>${esc(g.name)}</div>
+  `).join('') + `<div class="legend-item"><div class="legend-dot" style="background:#10b981;color:#10b981"></div>已打卡 ✓</div>`;
+  const gl = document.getElementById('groupList');
+  gl.innerHTML = '';
+  GROUPS.forEach(g => {
+    const block = document.createElement('div');
+    block.className = 'group-block';
+    block.dataset.gid = g.id;
+    const places = PLACES.filter(p => p.g === g.id);
+    const doneN = places.filter(p => checkins[p.id]).length;
+    block.innerHTML = `
+      <div class="group-head">
+        <div class="g-dot" style="background:${g.color};color:${g.color}"></div>
+        <div class="g-name">${g.icon} ${esc(g.name)}</div>
+        <div class="g-count">${doneN}/${places.length}</div>
+        <div class="g-arrow">▼</div>
+      </div>
+      <div class="pl-list"></div>
+    `;
+    const listEl = block.querySelector('.pl-list');
+    places.forEach(p => {
+      const it = document.createElement('div');
+      it.className = 'pl-item';
+      it.dataset.pid = p.id;
+      const done = !!checkins[p.id];
+      it.innerHTML = `
+        <div class="pl-dot ${done ? 'done' : ''}" style="background:${g.color};color:${g.color}">${done ? '✓' : p.icon}</div>
+        <div class="pl-body">
+          <div class="pl-name">${esc(p.name)} ${p.tag && p.tag !== '存档' && p.tag !== '单独' ? `<span class="pl-tag">${esc(p.tag)}</span>` : ''} ${done ? '<span class="pl-done-tag">已打卡</span>' : ''}</div>
+          <div class="pl-desc">${esc(p.desc)}</div>
+          ${done ? `<div class="pl-checkin">🕒 ${fmtTime(checkins[p.id].ts)}</div>` : ''}
+        </div>
+      `;
+      it.addEventListener('click', () => {
+        document.querySelectorAll('.pl-item').forEach(el => el.classList.remove('active'));
+        it.classList.add('active');
+        focusPlace(p.id, false);
+        setTimeout(() => openPlace(p.id), 900);
+      });
+      listEl.appendChild(it);
+    });
+    block.querySelector('.group-head').addEventListener('click', () => {
+      block.classList.toggle('collapsed');
+    });
+    gl.appendChild(block);
+  });
+}
+function refreshSidebarCounts() {
+  document.querySelectorAll('.group-block').forEach(block => {
+    const gid = block.dataset.gid;
+    const places = PLACES.filter(p => p.g === gid);
+    const doneN = places.filter(p => checkins[p.id]).length;
+    block.querySelector('.g-count').textContent = `${doneN}/${places.length}`;
+  });
+  document.querySelectorAll('.pl-item').forEach(it => {
+    const pid = it.dataset.pid;
+    const p = PLACES.find(x => x.id === pid);
+    if (!p) return;
+    const g = groupOf(pid);
+    const done = !!checkins[pid];
+    const dot = it.querySelector('.pl-dot');
+    dot.className = `pl-dot ${done ? 'done' : ''}`;
+    dot.style.background = done ? '' : g.color;
+    dot.style.color = g.color;
+    dot.textContent = done ? '✓' : p.icon;
+    const nameEl = it.querySelector('.pl-name');
+    if (done && !nameEl.querySelector('.pl-done-tag')) {
+      const t = document.createElement('span'); t.className = 'pl-done-tag'; t.textContent = '已打卡';
+      nameEl.appendChild(t);
+    } else if (!done) {
+      const t = nameEl.querySelector('.pl-done-tag'); if (t) t.remove();
+    }
+    let ciEl = it.querySelector('.pl-checkin');
+    if (done) {
+      if (!ciEl) { ciEl = document.createElement('div'); ciEl.className = 'pl-checkin'; it.querySelector('.pl-body').appendChild(ciEl); }
+      ciEl.textContent = `🕒 ${fmtTime(checkins[pid].ts)}`;
+    } else if (ciEl) ciEl.remove();
+  });
+}
+
+// ================= 进度 & 倒计时 =================
+const HORSE_END = new Date(2027, 1, 6).getTime(); // 2027-02-06 马年收官
+function refreshProgress() {
+  const done = COUNTABLE.filter(p => checkins[p.id]).length;
+  document.getElementById('ckCount').textContent = done;
+  document.getElementById('ckTotal').textContent = COUNTABLE.length;
+  document.getElementById('ckBar').style.width = (COUNTABLE.length ? Math.round(done / COUNTABLE.length * 100) : 0) + '%';
+  const days = Math.max(0, Math.ceil((HORSE_END - Date.now()) / 86400000));
+  document.getElementById('cdDays').textContent = days;
+}
+function refreshUI() {
+  refreshMarkers();
+  refreshSidebarCounts();
+  refreshProgress();
+}
+
+// ================= 地图展开/收起 =================
+const mapWrap = document.getElementById('mapWrap');
+const mapClose = document.getElementById('mapClose');
+const mapOnboard = document.getElementById('mapOnboard');
+let isExpanded = false;
+function expandMap() {
+  if (isExpanded) return;
+  isExpanded = true;
+  mapWrap.classList.add('expanded');
+  setTimeout(() => map.invalidateSize(), 100);
+  setTimeout(() => map.invalidateSize(), 500);
+}
+function collapseMap() {
+  isExpanded = false;
+  mapWrap.classList.remove('expanded');
+  setTimeout(() => map.invalidateSize(), 100);
+  setTimeout(() => map.invalidateSize(), 500);
+}
+window.expandMap = expandMap;
+onboardClose.addEventListener('click', (e) => { e.stopPropagation(); mapOnboard.classList.add('hidden'); });
+mapOnboard.addEventListener('click', (e) => {
+  if (e.target === mapOnboard) { mapOnboard.classList.add('hidden'); expandMap(); }
+});
+mapWrap.addEventListener('click', (e) => {
+  if (isExpanded) return;
+  if (e.target.closest('.leaflet-marker-icon') || e.target.closest('.leaflet-popup')) return;
+  if (!mapOnboard.classList.contains('hidden')) { mapOnboard.classList.add('hidden'); expandMap(); return; }
+  expandMap();
+});
+mapClose.addEventListener('click', (e) => { e.stopPropagation(); collapseMap(); });
+
+// ================= 云同步 =================
+const API_BASE = 'api/';
+function setSyncDot(state, text) {
+  const d = document.getElementById('syncDot');
+  d.className = 'sync-dot ' + state;
+  document.getElementById('syncText').textContent = text;
+}
+function markPending() {
+  localStorage.setItem(LS.pending, '1');
+  if (hasBackend) setSyncDot('pending', '待同步');
+}
+let syncTimer = null;
+function scheduleSync() {
+  if (!token || !hasBackend) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(), 2500);
+}
+async function apiFetch(path, opts) {
+  const headers = Object.assign({ 'X-Token': token }, (opts && opts.headers) || {});
+  const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+  if (res.status === 401) throw new Error('口令不对');
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json().catch(() => ({}));
+}
+window._removedCk = [];
+window._removedPh = [];
+async function syncNow(manual) {
+  if (!token) { if (manual) { openSettings(); showToast('先填云同步口令'); } return; }
+  try {
+    const payload = {
+      checkins,
+      photos: photos.map(p => ({ key: p.key, pid: p.pid, ts: p.ts })),
+      photoData: {},
+      removedCheckins: window._removedCk,
+      removedPhotos: window._removedPh,
+    };
+    // 附带本地照片内容（服务器缺的）
+    for (const ph of photos) {
+      const data = await idbGet(ph.key);
+      if (data) payload.photoData[ph.key] = data;
+    }
+    const data = await apiFetch('sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    hasBackend = true;
+    // 合并：本地 ts 新者胜 + 服务器新增补全
+    let changed = false;
+    Object.keys(data.checkins || {}).forEach(pid => {
+      const remote = data.checkins[pid];
+      const local = checkins[pid];
+      if (!local || (remote.ts || 0) > (local.ts || 0)) { checkins[pid] = remote; changed = true; }
+    });
+    (data.photos || []).forEach(rph => {
+      if (!photos.find(x => x.key === rph.key)) { photos.push(rph); changed = true; }
+    });
+    localStorage.setItem(LS.checkins, JSON.stringify(checkins));
+    localStorage.setItem(LS.photos, JSON.stringify(photos));
+    // 下载服务器有而本地没有的照片
+    for (const rph of (data.photos || [])) {
+      const local = await idbGet(rph.key);
+      if (!local) {
+        try {
+          const imgRes = await fetch(API_BASE + 'photo/' + encodeURIComponent(rph.key));
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+            await idbPut(rph.key, dataUrl);
+          }
+        } catch(e) { /* 单张失败不阻塞 */ }
+      }
+    }
+    window._removedCk = []; window._removedPh = [];
+    localStorage.removeItem(LS.pending);
+    setSyncDot('ok', '已同步');
+    if (changed) { refreshUI(); if (currentPid) openPlace(currentPid); }
+    if (manual) showToast('☁️ 同步完成');
+    const sn = document.getElementById('syncStatusNote');
+    if (sn) sn.textContent = '云同步：正常 ✓（' + fmtTime(Date.now()) + '）';
+  } catch(e) {
+    if (e.message === '口令不对') { setSyncDot('err', '口令错误'); return; }
+    hasBackend = false;
+    setSyncDot('err', '离线模式');
+    const sn = document.getElementById('syncStatusNote');
+    if (sn) sn.textContent = '云同步：连不上服务器（本地模式，数据存浏览器）';
+  }
+}
+window.syncNow = syncNow;
+async function saveToken() {
+  const v = document.getElementById('tokenInput').value.trim();
+  if (!v) return showToast('口令不能为空');
+  token = v;
+  localStorage.setItem(LS.token, token);
+  await syncNow(true);
+}
+window.saveToken = saveToken;
+function openSettings() {
+  document.getElementById('tokenInput').value = token;
+  document.getElementById('settingsMask').classList.add('show');
+}
+window.openSettings = openSettings;
+function closeSettings() { document.getElementById('settingsMask').classList.remove('show'); }
+window.closeSettings = closeSettings;
+document.getElementById('gearBtn').addEventListener('click', openSettings);
+
+// ================= 导出 / 导入 =================
+async function exportData() {
+  const photoDump = {};
+  for (const ph of photos) {
+    const data = await idbGet(ph.key);
+    if (data) photoDump[ph.key] = data;
+  }
+  const blob = new Blob([JSON.stringify({
+    app: '2026-travel-map', version: 1, exportedAt: new Date().toISOString(),
+    checkins, photos, photoDump,
+  }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `2026旅游地图备份-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('⬇️ 备份已导出');
+}
+window.exportData = exportData;
+async function importData(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const d = JSON.parse(text);
+    if (!d || d.app !== '2026-travel-map') throw new Error('格式不对');
+    let changed = 0;
+    Object.keys(d.checkins || {}).forEach(pid => {
+      const r = d.checkins[pid];
+      if (!checkins[pid] || (r.ts || 0) > (checkins[pid].ts || 0)) { checkins[pid] = r; changed++; }
+    });
+    for (const ph of (d.photos || [])) {
+      if (!photos.find(x => x.key === ph.key)) {
+        photos.push(ph);
+        const data = (d.photoDump || {})[ph.key];
+        if (data) await idbPut(ph.key, data);
+      }
+    }
+    localStorage.setItem(LS.checkins, JSON.stringify(checkins));
+    localStorage.setItem(LS.photos, JSON.stringify(photos));
+    refreshUI();
+    showToast(`⬆️ 导入完成（更新 ${changed} 条）`);
+    scheduleSync();
+  } catch(e) {
+    showToast('导入失败：' + e.message);
+  }
+  ev.target.value = '';
+}
+window.importData = importData;
+function confirmWipe() {
+  if (!confirm('清空本地缓存（打卡、照片、口令）？服务器上的数据不会删。')) return;
+  localStorage.removeItem(LS.checkins); localStorage.removeItem(LS.photos);
+  localStorage.removeItem(LS.token); localStorage.removeItem(LS.pending);
+  checkins = {}; photos = []; token = '';
+  const tx = idb.transaction('photos', 'readwrite');
+  tx.objectStore('photos').clear();
+  refreshUI();
+  closeSettings();
+  showToast('已清空本地，可重新输入口令拉取');
+}
+window.confirmWipe = confirmWipe;
+
+// ================= 启动 =================
+(async function init() {
+  loadLocal();
+  try { await openIDB(); } catch(e) { console.warn('IndexedDB 不可用，照片仅内存', e); }
+  buildSidebar();
+  buildMarkers();
+  refreshUI();
+  const domestic = PLACES.filter(p => !isForeign(p.id));
+  map.fitBounds(domestic.map(p => [p.glat, p.glng]), { padding: [40, 40] });
+  if (token) { syncNow(false); } else { setSyncDot('pending', '未配置'); }
+  window.addEventListener('resize', () => { map.invalidateSize(); });
+})();
+</script>
+</body>
+</html>
