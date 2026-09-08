@@ -271,6 +271,8 @@ html, body {
 }
 .toast.show { opacity: 1; }
 @media (max-width: 768px) {
+  /* 手机端禁毛玻璃：backdrop-filter 拖累合成层，是拖拽卡顿的元凶之一 */
+  * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
   .sidebar { width: 100%; max-width: 100%; height: 100vh; padding-bottom: 230px; }
   .header { padding: 18px 16px 14px; }
   .panel { margin: 10px 12px; padding: 12px 14px; }
@@ -565,6 +567,9 @@ const map = L.map('map', {
 });
 const tileLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', {
   attribution: '高德地图', maxZoom: 19, subdomains: ['1','2','3','4'], crossOrigin: true,
+  updateWhenIdle: false,   // 拖动中实时加载瓦片（手机拖拽延迟根治）
+  updateWhenZooming: false, // 缩放中不重复请求，缩放结束再补
+  keepBuffer: 4,           // 多预载周边一圈瓦片，拖动不露白
 }).addTo(map);
 // 瓦片加载指示器
 const mapLoading = document.createElement('div');
